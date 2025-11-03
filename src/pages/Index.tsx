@@ -32,6 +32,7 @@ interface Customer {
 interface Service {
   id: string;
   name: string;
+  price: number;
 }
 
 const Index = () => {
@@ -50,6 +51,9 @@ const Index = () => {
   const [newServiceName, setNewServiceName] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isOrderDetailOpen, setIsOrderDetailOpen] = useState(false);
+  const [newServicePrice, setNewServicePrice] = useState('');
+  const [editingService, setEditingService] = useState<Service | null>(null);
 
   const [newOrder, setNewOrder] = useState({
     dateFrom: '',
@@ -178,14 +182,51 @@ const Index = () => {
     if (!newServiceName.trim()) return;
     const service: Service = {
       id: Date.now().toString(),
-      name: newServiceName
+      name: newServiceName,
+      price: parseFloat(newServicePrice) || 0
     };
     const updatedServices = [...services, service];
     setServices(updatedServices);
     saveData('services', updatedServices);
     setNewServiceName('');
+    setNewServicePrice('');
     setIsServiceDialogOpen(false);
     toast.success('Услуга добавлена');
+  };
+
+  const updateService = (id: string, updates: Partial<Service>) => {
+    const updatedServices = services.map(s => 
+      s.id === id ? { ...s, ...updates } : s
+    );
+    setServices(updatedServices);
+    saveData('services', updatedServices);
+  };
+
+  const exportToCSV = () => {
+    const headers = ['Номер заказа', 'Дата с', 'Дата до', 'Покупатель', 'Телефон', 'Исполнитель', 'Telegram', 'Статус', 'Услуги'];
+    const rows = orders.map(order => [
+      order.orderNumber,
+      order.dateFrom,
+      order.dateTo,
+      order.customerName,
+      order.customerPhone,
+      order.executor,
+      order.telegram,
+      getStatusInfo(order.status).label,
+      order.services.join('; ')
+    ]);
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `myshop_orders_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    toast.success('Экспорт завершён');
   };
 
   const deleteService = (id: string) => {
@@ -315,6 +356,33 @@ const Index = () => {
           </TabsList>
 
           <TabsContent value="orders" className="space-y-6 animate-fade-in">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground mb-1">Всего заказов</p>
+                    <p className="text-3xl font-bold text-primary">{orders.length}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground mb-1">Выполнено</p>
+                    <p className="text-3xl font-bold text-accent">{orders.filter(o => o.status === 'completed').length}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground mb-1">В работе</p>
+                    <p className="text-3xl font-bold text-yellow-500">{orders.filter(o => o.status === 'inProgress' || o.status === 'accepted').length}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="relative flex-1">
                 <Icon name="Search" size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -325,6 +393,10 @@ const Index = () => {
                   className="pl-10 h-12"
                 />
               </div>
+              <Button onClick={exportToCSV} variant="outline" className="h-12 px-6">
+                <Icon name="Download" size={20} className="mr-2" />
+                Экспорт
+              </Button>
               <Button onClick={() => setIsOrderDialogOpen(true)} className="h-12 px-6">
                 <Icon name="Plus" size={20} className="mr-2" />
                 Создать заказ
@@ -335,110 +407,31 @@ const Index = () => {
               {filteredOrders.map((order) => {
                 const statusInfo = getStatusInfo(order.status);
                 return (
-                  <Card key={order.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <CardTitle className="text-lg">Заказ №{order.orderNumber}</CardTitle>
-                          <CardDescription className="mt-1">
-                            {order.dateFrom} — {order.dateTo}
-                          </CardDescription>
-                        </div>
-                        <Badge className={statusInfo.color}>{statusInfo.label}</Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Покупатель</p>
-                          <p className="font-medium">{order.customerName}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Телефон</p>
-                          <p className="font-medium">{order.customerPhone}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Исполнитель</p>
-                          <p className="font-medium">{order.executor}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Telegram</p>
-                          <p className="font-medium">{order.telegram}</p>
-                        </div>
-                      </div>
-
-                      {order.services.length > 0 && (
-                        <div>
-                          <p className="text-sm text-muted-foreground mb-2">Услуги</p>
-                          <div className="flex flex-wrap gap-2">
-                            {order.services.map((service, idx) => (
-                              <Badge key={idx} variant="secondary">{service}</Badge>
-                            ))}
+                  <Card 
+                    key={order.id} 
+                    className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => {
+                      setSelectedOrder(order);
+                      setIsOrderDetailOpen(true);
+                    }}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="font-semibold text-lg">Заказ №{order.orderNumber}</h3>
+                            <Badge className={statusInfo.color}>{statusInfo.label}</Badge>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                            <p className="text-muted-foreground">{order.customerName}</p>
+                            <p className="text-muted-foreground">{order.executor}</p>
+                            <p className="text-xs text-muted-foreground">{order.dateFrom} — {order.dateTo}</p>
+                            {order.services.length > 0 && (
+                              <p className="text-xs text-muted-foreground">{order.services.length} услуг</p>
+                            )}
                           </div>
                         </div>
-                      )}
-
-                      <div className="flex flex-wrap gap-2 pt-2">
-                        {order.status === 'inProgress' && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateOrderStatus(order.id, 'rejected')}
-                              className="flex-1"
-                            >
-                              Отклонено
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => updateOrderStatus(order.id, 'accepted')}
-                              className="flex-1 bg-accent hover:bg-accent/90"
-                            >
-                              Принято
-                            </Button>
-                          </>
-                        )}
-
-                        {order.status === 'accepted' && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateOrderStatus(order.id, 'cancelled')}
-                              className="flex-1"
-                            >
-                              Отменено
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => updateOrderStatus(order.id, 'completed')}
-                              className="flex-1 bg-accent hover:bg-accent/90"
-                            >
-                              Выполнено
-                            </Button>
-                          </>
-                        )}
-
-                        {(order.status === 'completed' || order.status === 'cancelled' || order.status === 'rejected') && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEditOrder(order)}
-                            className="flex-1"
-                          >
-                            <Icon name="Edit" size={16} className="mr-2" />
-                            Редактировать
-                          </Button>
-                        )}
-
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => deleteOrder(order.id)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Icon name="Trash2" size={16} />
-                        </Button>
+                        <Icon name="ChevronRight" size={20} className="text-muted-foreground" />
                       </div>
                     </CardContent>
                   </Card>
@@ -503,20 +496,37 @@ const Index = () => {
               {services.map((service) => (
                 <Card key={service.id}>
                   <CardContent className="flex items-center justify-between p-4">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-1">
                       <div className="w-10 h-10 bg-accent/10 rounded-full flex items-center justify-center">
                         <Icon name="Briefcase" size={20} className="text-accent" />
                       </div>
-                      <p className="font-medium">{service.name}</p>
+                      <div className="flex-1">
+                        <p className="font-medium">{service.name}</p>
+                        <p className="text-sm text-muted-foreground">{service.price} ₽</p>
+                      </div>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => deleteService(service.id)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Icon name="Trash2" size={16} />
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingService(service);
+                          setNewServiceName(service.name);
+                          setNewServicePrice(service.price.toString());
+                          setIsServiceDialogOpen(true);
+                        }}
+                      >
+                        <Icon name="Edit" size={16} />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => deleteService(service.id)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Icon name="Trash2" size={16} />
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -642,7 +652,7 @@ const Index = () => {
                         }
                       }}
                     >
-                      {service.name}
+                      {service.name} ({service.price} ₽)
                     </Badge>
                   );
                 })}
@@ -765,7 +775,7 @@ const Index = () => {
                         }
                       }}
                     >
-                      {service.name}
+                      {service.name} ({service.price} ₽)
                     </Badge>
                   );
                 })}
@@ -776,6 +786,146 @@ const Index = () => {
               Сохранить изменения
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isOrderDetailOpen} onOpenChange={setIsOrderDetailOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Заказ №{selectedOrder?.orderNumber}</DialogTitle>
+            <DialogDescription>{selectedOrder?.dateFrom} — {selectedOrder?.dateTo}</DialogDescription>
+          </DialogHeader>
+
+          {selectedOrder && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <Badge className={getStatusInfo(selectedOrder.status).color}>
+                  {getStatusInfo(selectedOrder.status).label}
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Покупатель</p>
+                  <p className="font-medium">{selectedOrder.customerName}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Телефон</p>
+                  <p className="font-medium">{selectedOrder.customerPhone}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Исполнитель</p>
+                  <p className="font-medium">{selectedOrder.executor}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Telegram</p>
+                  <p className="font-medium">{selectedOrder.telegram}</p>
+                </div>
+              </div>
+
+              {selectedOrder.services.length > 0 && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Услуги</p>
+                  <div className="space-y-2">
+                    {selectedOrder.services.map((serviceName, idx) => {
+                      const service = services.find(s => s.name === serviceName);
+                      return (
+                        <div key={idx} className="flex items-center justify-between p-3 bg-secondary rounded-lg">
+                          <span>{serviceName}</span>
+                          {service && <span className="font-medium">{service.price} ₽</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-4 pt-4 border-t">
+                    <div className="flex items-center justify-between text-lg font-bold">
+                      <span>Итого:</span>
+                      <span>{selectedOrder.services.reduce((sum, name) => {
+                        const service = services.find(s => s.name === name);
+                        return sum + (service?.price || 0);
+                      }, 0)} ₽</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2 pt-4 border-t">
+                {selectedOrder.status === 'inProgress' && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        updateOrderStatus(selectedOrder.id, 'rejected');
+                        setIsOrderDetailOpen(false);
+                      }}
+                      className="flex-1"
+                    >
+                      Отклонено
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        updateOrderStatus(selectedOrder.id, 'accepted');
+                        setIsOrderDetailOpen(false);
+                      }}
+                      className="flex-1 bg-accent hover:bg-accent/90"
+                    >
+                      Принято
+                    </Button>
+                  </>
+                )}
+
+                {selectedOrder.status === 'accepted' && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        updateOrderStatus(selectedOrder.id, 'cancelled');
+                        setIsOrderDetailOpen(false);
+                      }}
+                      className="flex-1"
+                    >
+                      Отменено
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        updateOrderStatus(selectedOrder.id, 'completed');
+                        setIsOrderDetailOpen(false);
+                      }}
+                      className="flex-1 bg-accent hover:bg-accent/90"
+                    >
+                      Выполнено
+                    </Button>
+                  </>
+                )}
+
+                {(selectedOrder.status === 'completed' || selectedOrder.status === 'cancelled' || selectedOrder.status === 'rejected') && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      handleEditOrder(selectedOrder);
+                      setIsOrderDetailOpen(false);
+                    }}
+                    className="flex-1"
+                  >
+                    <Icon name="Edit" size={16} className="mr-2" />
+                    Редактировать
+                  </Button>
+                )}
+
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    deleteOrder(selectedOrder.id);
+                    setIsOrderDetailOpen(false);
+                  }}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Icon name="Trash2" size={16} className="mr-2" />
+                  Удалить
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -826,10 +976,17 @@ const Index = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isServiceDialogOpen} onOpenChange={setIsServiceDialogOpen}>
+      <Dialog open={isServiceDialogOpen} onOpenChange={(open) => {
+        setIsServiceDialogOpen(open);
+        if (!open) {
+          setEditingService(null);
+          setNewServiceName('');
+          setNewServicePrice('');
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Добавить услугу</DialogTitle>
+            <DialogTitle>{editingService ? 'Редактировать услугу' : 'Добавить услугу'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -839,11 +996,32 @@ const Index = () => {
                 placeholder="Введите название"
                 value={newServiceName}
                 onChange={(e) => setNewServiceName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addService()}
               />
             </div>
-            <Button onClick={addService} className="w-full">
-              Добавить
+            <div className="space-y-2">
+              <Label htmlFor="servicePrice">Цена (₽)</Label>
+              <Input
+                id="servicePrice"
+                type="number"
+                placeholder="0"
+                value={newServicePrice}
+                onChange={(e) => setNewServicePrice(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && (editingService ? updateService(editingService.id, { name: newServiceName, price: parseFloat(newServicePrice) || 0 }) && setIsServiceDialogOpen(false) : addService())}
+              />
+            </div>
+            <Button onClick={() => {
+              if (editingService) {
+                updateService(editingService.id, { name: newServiceName, price: parseFloat(newServicePrice) || 0 });
+                setIsServiceDialogOpen(false);
+                setEditingService(null);
+                setNewServiceName('');
+                setNewServicePrice('');
+                toast.success('Услуга обновлена');
+              } else {
+                addService();
+              }
+            }} className="w-full">
+              {editingService ? 'Сохранить' : 'Добавить'}
             </Button>
           </div>
         </DialogContent>
