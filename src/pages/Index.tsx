@@ -22,6 +22,9 @@ interface Order {
   status: 'processing' | 'inProgress' | 'accepted' | 'rejected' | 'completed' | 'cancelled';
   services: string[];
   createdAt: Date;
+  completedAt?: Date;
+  rejectedAt?: Date;
+  cancelledAt?: Date;
 }
 
 interface Customer {
@@ -54,6 +57,9 @@ const Index = () => {
   const [isOrderDetailOpen, setIsOrderDetailOpen] = useState(false);
   const [newServicePrice, setNewServicePrice] = useState('');
   const [editingService, setEditingService] = useState<Service | null>(null);
+  const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false);
+  const [receiptText, setReceiptText] = useState('');
+  const [isCompletedDialogOpen, setIsCompletedDialogOpen] = useState(false);
 
   const [newOrder, setNewOrder] = useState({
     dateFrom: '',
@@ -102,6 +108,30 @@ const Index = () => {
     return Math.floor(10000 + Math.random() * 90000).toString();
   };
 
+  const generateReceipt = (order: Order) => {
+    const total = order.services.reduce((sum, name) => {
+      const service = services.find(s => s.name === name);
+      return sum + (service?.price || 0);
+    }, 0);
+
+    const receipt = `📋 Заказ №${order.orderNumber}
+📅 Период: ${order.dateFrom} - ${order.dateTo}
+👤 Покупатель: ${order.customerName}
+📱 Телефон: ${order.customerPhone}
+👨‍💼 Исполнитель: ${order.executor}
+📮 Telegram: ${order.telegram}
+
+🛍️ Услуги:
+${order.services.map(name => {
+  const service = services.find(s => s.name === name);
+  return `• ${name} - ${service?.price || 0} ₽`;
+}).join('\n')}
+
+💰 Итого: ${total} ₽`;
+    
+    return receipt;
+  };
+
   const handleCreateOrder = () => {
     setIsOrderDialogOpen(false);
     setIsProcessingDialogOpen(true);
@@ -124,6 +154,9 @@ const Index = () => {
 
       setTimeout(() => {
         setIsProcessingDialogOpen(false);
+        const receipt = generateReceipt(order);
+        setReceiptText(receipt);
+        setIsReceiptDialogOpen(true);
         setNewOrder({
           dateFrom: '',
           dateTo: '',
@@ -139,14 +172,22 @@ const Index = () => {
   };
 
   const updateOrderStatus = (orderId: string, newStatus: Order['status']) => {
-    const updatedOrders = orders.map(order =>
-      order.id === orderId ? { ...order, status: newStatus } : order
-    );
+    const now = new Date();
+    const updatedOrders = orders.map(order => {
+      if (order.id === orderId) {
+        const updates: Partial<Order> = { status: newStatus };
+        if (newStatus === 'completed') updates.completedAt = now;
+        if (newStatus === 'rejected') updates.rejectedAt = now;
+        if (newStatus === 'cancelled') updates.cancelledAt = now;
+        return { ...order, ...updates };
+      }
+      return order;
+    });
     setOrders(updatedOrders);
     saveData('orders', updatedOrders);
 
     if (newStatus === 'completed') {
-      toast.success('Заказ выполнен!');
+      setIsCompletedDialogOpen(true);
     }
   };
 
@@ -202,31 +243,9 @@ const Index = () => {
     saveData('services', updatedServices);
   };
 
-  const exportToCSV = () => {
-    const headers = ['Номер заказа', 'Дата с', 'Дата до', 'Покупатель', 'Телефон', 'Исполнитель', 'Telegram', 'Статус', 'Услуги'];
-    const rows = orders.map(order => [
-      order.orderNumber,
-      order.dateFrom,
-      order.dateTo,
-      order.customerName,
-      order.customerPhone,
-      order.executor,
-      order.telegram,
-      getStatusInfo(order.status).label,
-      order.services.join('; ')
-    ]);
-    
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `myshop_orders_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    toast.success('Экспорт завершён');
+  const copyReceipt = () => {
+    navigator.clipboard.writeText(receiptText);
+    toast.success('Чек скопирован в буфер обмена!');
   };
 
   const deleteService = (id: string) => {
@@ -393,10 +412,6 @@ const Index = () => {
                   className="pl-10 h-12"
                 />
               </div>
-              <Button onClick={exportToCSV} variant="outline" className="h-12 px-6">
-                <Icon name="Download" size={20} className="mr-2" />
-                Экспорт
-              </Button>
               <Button onClick={() => setIsOrderDialogOpen(true)} className="h-12 px-6">
                 <Icon name="Plus" size={20} className="mr-2" />
                 Создать заказ
@@ -821,6 +836,24 @@ const Index = () => {
                   <p className="text-sm text-muted-foreground mb-1">Telegram</p>
                   <p className="font-medium">{selectedOrder.telegram}</p>
                 </div>
+                {selectedOrder.completedAt && (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Выполнен</p>
+                    <p className="font-medium text-accent">{new Date(selectedOrder.completedAt).toLocaleString('ru-RU')}</p>
+                  </div>
+                )}
+                {selectedOrder.rejectedAt && (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Отклонён</p>
+                    <p className="font-medium text-destructive">{new Date(selectedOrder.rejectedAt).toLocaleString('ru-RU')}</p>
+                  </div>
+                )}
+                {selectedOrder.cancelledAt && (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Отменён</p>
+                    <p className="font-medium text-muted-foreground">{new Date(selectedOrder.cancelledAt).toLocaleString('ru-RU')}</p>
+                  </div>
+                )}
               </div>
 
               {selectedOrder.services.length > 0 && (
@@ -926,6 +959,41 @@ const Index = () => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isReceiptDialogOpen} onOpenChange={setIsReceiptDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Чек заказа</DialogTitle>
+            <DialogDescription>Скопируйте чек для отправки клиенту</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-secondary p-4 rounded-lg">
+              <pre className="text-sm whitespace-pre-wrap font-mono">{receiptText}</pre>
+            </div>
+            <Button onClick={copyReceipt} className="w-full h-12">
+              <Icon name="Copy" size={20} className="mr-2" />
+              Скопировать чек
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isCompletedDialogOpen} onOpenChange={setIsCompletedDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <div className="text-center py-6 space-y-4 animate-scale-in">
+            <div className="w-20 h-20 mx-auto bg-accent/10 rounded-full flex items-center justify-center">
+              <Icon name="CheckCircle2" size={40} className="text-accent" />
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold mb-2">Заказ завершён!</h3>
+              <p className="text-muted-foreground">Заказ успешно выполнен</p>
+            </div>
+            <Button onClick={() => setIsCompletedDialogOpen(false)} className="w-full">
+              Отлично
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
