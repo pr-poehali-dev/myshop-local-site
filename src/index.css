@@ -109,3 +109,25 @@
     -moz-osx-font-smoothing: grayscale;
   }
 }
+
+@media print {
+  @page {
+    margin: 1cm;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  button {
+    display: none !important;
+  }
+
+  [role="dialog"] {
+    display: none !important;
+  }
+}

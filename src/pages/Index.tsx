@@ -114,20 +114,44 @@ const Index = () => {
       return sum + (service?.price || 0);
     }, 0);
 
-    const receipt = `📋 Заказ №${order.orderNumber}
-📅 Период: ${order.dateFrom} - ${order.dateTo}
-👤 Покупатель: ${order.customerName}
-📱 Телефон: ${order.customerPhone}
-👨‍💼 Исполнитель: ${order.executor}
-📮 Telegram: ${order.telegram}
+    const currentDate = new Date().toLocaleDateString('ru-RU');
+    
+    const receipt = `
+╔═══════════════════════════════════════╗
+          СЧЁТ НА ОПЛАТУ УСЛУГ
+╚═══════════════════════════════════════╝
 
-🛍️ Услуги:
-${order.services.map(name => {
+Номер заказа: ${order.orderNumber}
+Дата выставления: ${currentDate}
+
+────────────────────────────────────────
+ИНФОРМАЦИЯ О ЗАКАЗЧИКЕ
+────────────────────────────────────────
+Клиент: ${order.customerName}
+Телефон: ${order.customerPhone}
+Telegram: ${order.telegram}
+
+────────────────────────────────────────
+ИНФОРМАЦИЯ ОБ УСЛУГАХ
+────────────────────────────────────────
+Период выполнения: ${order.dateFrom} — ${order.dateTo}
+Ответственный исполнитель: ${order.executor}
+
+────────────────────────────────────────
+ПЕРЕЧЕНЬ УСЛУГ
+────────────────────────────────────────
+${order.services.map((name, idx) => {
   const service = services.find(s => s.name === name);
-  return `• ${name} - ${service?.price || 0} ₽`;
+  return `${idx + 1}. ${name.padEnd(30)} ${(service?.price || 0).toLocaleString('ru-RU')} ₽`;
 }).join('\n')}
 
-💰 Итого: ${total} ₽`;
+────────────────────────────────────────
+ИТОГО К ОПЛАТЕ: ${total.toLocaleString('ru-RU')} ₽
+────────────────────────────────────────
+
+Спасибо за обращение!
+MyShop © ${new Date().getFullYear()}
+`;
     
     return receipt;
   };
@@ -342,7 +366,7 @@ ${order.services.map(name => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="border-b bg-white/80 backdrop-blur-lg sticky top-0 z-50">
+      <div className="border-b bg-white/80 backdrop-blur-lg sticky top-0 z-50 no-print">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -351,24 +375,34 @@ ${order.services.map(name => {
               </div>
               <h1 className="text-2xl font-bold">MyShop</h1>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setIsAuthenticated(false);
-                localStorage.removeItem('myshop_auth');
-              }}
-            >
-              <Icon name="LogOut" size={18} className="mr-2" />
-              Выйти
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => window.print()}
+              >
+                <Icon name="Printer" size={18} className="mr-2" />
+                Печать
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setIsAuthenticated(false);
+                  localStorage.removeItem('myshop_auth');
+                }}
+              >
+                <Icon name="LogOut" size={18} className="mr-2" />
+                Выйти
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="orders" className="w-full">
-          <TabsList className="grid w-full max-w-md mx-auto grid-cols-3 mb-8 h-12">
+          <TabsList className="grid w-full max-w-md mx-auto grid-cols-3 mb-8 h-12 no-print">
             <TabsTrigger value="orders" className="text-base">Заказы</TabsTrigger>
             <TabsTrigger value="people" className="text-base">Люди</TabsTrigger>
             <TabsTrigger value="services" className="text-base">Услуги</TabsTrigger>
@@ -627,8 +661,8 @@ ${order.services.map(name => {
                   <SelectValue placeholder="Выберите исполнителя" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Кулешова Арина">Кулешова Арина</SelectItem>
-                  <SelectItem value="Яргунов Роман">Яргунов Роман</SelectItem>
+                  <SelectItem value="@arinzz0h">@arinzz0h</SelectItem>
+                  <SelectItem value="@skzry">@skzry</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -750,8 +784,8 @@ ${order.services.map(name => {
                   <SelectValue placeholder="Выберите исполнителя" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Кулешова Арина">Кулешова Арина</SelectItem>
-                  <SelectItem value="Яргунов Роман">Яргунов Роман</SelectItem>
+                  <SelectItem value="@arinzz0h">@arinzz0h</SelectItem>
+                  <SelectItem value="@skzry">@skzry</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -931,7 +965,7 @@ ${order.services.map(name => {
                   </>
                 )}
 
-                {(selectedOrder.status === 'completed' || selectedOrder.status === 'cancelled' || selectedOrder.status === 'rejected') && (
+                {(selectedOrder.status === 'cancelled' || selectedOrder.status === 'rejected') && (
                   <Button
                     variant="ghost"
                     onClick={() => {
@@ -942,6 +976,21 @@ ${order.services.map(name => {
                   >
                     <Icon name="Edit" size={16} className="mr-2" />
                     Редактировать
+                  </Button>
+                )}
+                
+                {selectedOrder.status === 'completed' && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const receipt = generateReceipt(selectedOrder);
+                      setReceiptText(receipt);
+                      setIsReceiptDialogOpen(true);
+                    }}
+                    className="flex-1"
+                  >
+                    <Icon name="FileText" size={16} className="mr-2" />
+                    Показать чек
                   </Button>
                 )}
 
