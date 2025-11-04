@@ -21,6 +21,7 @@ interface Order {
   telegram: string;
   status: 'processing' | 'inProgress' | 'accepted' | 'rejected' | 'completed' | 'cancelled';
   services: string[];
+  notes?: string;
   createdAt: Date;
   completedAt?: Date;
   rejectedAt?: Date;
@@ -68,7 +69,8 @@ const Index = () => {
     customerPhone: '',
     executor: '',
     telegram: '',
-    services: [] as string[]
+    services: [] as string[],
+    notes: ''
   });
 
   useEffect(() => {
@@ -148,7 +150,12 @@ ${order.services.map((name, idx) => {
 ────────────────────────────────────────
 ИТОГО К ОПЛАТЕ: ${total.toLocaleString('ru-RU')} ₽
 ────────────────────────────────────────
-
+${order.notes ? `
+ПРИМЕЧАНИЯ
+────────────────────────────────────────
+${order.notes}
+────────────────────────────────────────
+` : ''}
 Спасибо за обращение!
 MyShop © ${new Date().getFullYear()}
 `;
@@ -188,7 +195,8 @@ MyShop © ${new Date().getFullYear()}
           customerPhone: '',
           executor: '',
           telegram: '',
-          services: []
+          services: [],
+          notes: ''
         });
         toast.success(`Заказ №${orderNumber} создан`);
       }, 1500);
@@ -288,7 +296,8 @@ MyShop © ${new Date().getFullYear()}
       customerPhone: order.customerPhone,
       executor: order.executor,
       telegram: order.telegram,
-      services: order.services
+      services: order.services,
+      notes: order.notes || ''
     });
     setIsEditDialogOpen(true);
   };
@@ -309,7 +318,8 @@ MyShop © ${new Date().getFullYear()}
       customerPhone: '',
       executor: '',
       telegram: '',
-      services: []
+      services: [],
+      notes: ''
     });
     toast.success('Заказ обновлён');
   };
@@ -376,6 +386,70 @@ MyShop © ${new Date().getFullYear()}
               <h1 className="text-2xl font-bold">MyShop</h1>
             </div>
             <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const data = {
+                    orders,
+                    customers,
+                    services,
+                    exportDate: new Date().toISOString()
+                  };
+                  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `myshop-backup-${new Date().toISOString().split('T')[0]}.json`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                  toast.success('Данные экспортированы');
+                }}
+              >
+                <Icon name="Download" size={18} className="mr-2" />
+                Экспорт
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.accept = '.json';
+                  input.onchange = (e) => {
+                    const file = (e.target as HTMLInputElement).files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      try {
+                        const data = JSON.parse(event.target?.result as string);
+                        if (data.orders) {
+                          setOrders(data.orders);
+                          saveData('orders', data.orders);
+                        }
+                        if (data.customers) {
+                          setCustomers(data.customers);
+                          saveData('customers', data.customers);
+                        }
+                        if (data.services) {
+                          setServices(data.services);
+                          saveData('services', data.services);
+                        }
+                        toast.success('Данные импортированы');
+                      } catch (err) {
+                        toast.error('Ошибка импорта данных');
+                      }
+                    };
+                    reader.readAsText(file);
+                  };
+                  input.click();
+                }}
+              >
+                <Icon name="Upload" size={18} className="mr-2" />
+                Импорт
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -662,7 +736,7 @@ MyShop © ${new Date().getFullYear()}
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="@arinzz0h">@arinzz0h</SelectItem>
-                  <SelectItem value="@skzry">@skzry</SelectItem>
+                  <SelectItem value="@VirtMG">@VirtMG</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -680,32 +754,57 @@ MyShop © ${new Date().getFullYear()}
             <div className="space-y-2">
               <Label>Услуги</Label>
               <div className="flex flex-wrap gap-2">
-                {services.map((service) => {
-                  const isSelected = newOrder.services.includes(service.name);
-                  return (
-                    <Badge
-                      key={service.id}
-                      variant={isSelected ? "default" : "outline"}
-                      className="cursor-pointer"
-                      onClick={() => {
-                        if (isSelected) {
-                          setNewOrder({
-                            ...newOrder,
-                            services: newOrder.services.filter(s => s !== service.name)
-                          });
-                        } else {
-                          setNewOrder({
-                            ...newOrder,
-                            services: [...newOrder.services, service.name]
-                          });
-                        }
-                      }}
-                    >
-                      {service.name} ({service.price} ₽)
-                    </Badge>
-                  );
-                })}
+                {services.map((service) => (
+                  <Badge
+                    key={service.id}
+                    variant="outline"
+                    className="cursor-pointer hover:bg-primary hover:text-white transition-colors"
+                    onClick={() => {
+                      setNewOrder({
+                        ...newOrder,
+                        services: [...newOrder.services, service.name]
+                      });
+                    }}
+                  >
+                    {service.name} ({service.price} ₽)
+                  </Badge>
+                ))}
               </div>
+              {newOrder.services.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <Label className="text-sm font-medium">Выбранные услуги:</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {newOrder.services.map((serviceName, idx) => {
+                      const service = services.find(s => s.name === serviceName);
+                      return (
+                        <Badge
+                          key={idx}
+                          variant="default"
+                          className="cursor-pointer"
+                          onClick={() => {
+                            setNewOrder({
+                              ...newOrder,
+                              services: newOrder.services.filter((_, i) => i !== idx)
+                            });
+                          }}
+                        >
+                          {serviceName} ({service?.price} ₽) ✕
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Примечания</Label>
+              <Input
+                id="notes"
+                placeholder="Дополнительная информация"
+                value={newOrder.notes}
+                onChange={(e) => setNewOrder({ ...newOrder, notes: e.target.value })}
+              />
             </div>
 
             <Button onClick={handleCreateOrder} className="w-full h-12">
@@ -785,7 +884,7 @@ MyShop © ${new Date().getFullYear()}
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="@arinzz0h">@arinzz0h</SelectItem>
-                  <SelectItem value="@skzry">@skzry</SelectItem>
+                  <SelectItem value="@VirtMG">@VirtMG</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -803,32 +902,57 @@ MyShop © ${new Date().getFullYear()}
             <div className="space-y-2">
               <Label>Услуги</Label>
               <div className="flex flex-wrap gap-2">
-                {services.map((service) => {
-                  const isSelected = newOrder.services.includes(service.name);
-                  return (
-                    <Badge
-                      key={service.id}
-                      variant={isSelected ? "default" : "outline"}
-                      className="cursor-pointer"
-                      onClick={() => {
-                        if (isSelected) {
-                          setNewOrder({
-                            ...newOrder,
-                            services: newOrder.services.filter(s => s !== service.name)
-                          });
-                        } else {
-                          setNewOrder({
-                            ...newOrder,
-                            services: [...newOrder.services, service.name]
-                          });
-                        }
-                      }}
-                    >
-                      {service.name} ({service.price} ₽)
-                    </Badge>
-                  );
-                })}
+                {services.map((service) => (
+                  <Badge
+                    key={service.id}
+                    variant="outline"
+                    className="cursor-pointer hover:bg-primary hover:text-white transition-colors"
+                    onClick={() => {
+                      setNewOrder({
+                        ...newOrder,
+                        services: [...newOrder.services, service.name]
+                      });
+                    }}
+                  >
+                    {service.name} ({service.price} ₽)
+                  </Badge>
+                ))}
               </div>
+              {newOrder.services.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <Label className="text-sm font-medium">Выбранные услуги:</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {newOrder.services.map((serviceName, idx) => {
+                      const service = services.find(s => s.name === serviceName);
+                      return (
+                        <Badge
+                          key={idx}
+                          variant="default"
+                          className="cursor-pointer"
+                          onClick={() => {
+                            setNewOrder({
+                              ...newOrder,
+                              services: newOrder.services.filter((_, i) => i !== idx)
+                            });
+                          }}
+                        >
+                          {serviceName} ({service?.price} ₽) ✕
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="editNotes">Примечания</Label>
+              <Input
+                id="editNotes"
+                placeholder="Дополнительная информация"
+                value={newOrder.notes}
+                onChange={(e) => setNewOrder({ ...newOrder, notes: e.target.value })}
+              />
             </div>
 
             <Button onClick={saveEditedOrder} className="w-full h-12">
@@ -889,6 +1013,13 @@ MyShop © ${new Date().getFullYear()}
                   </div>
                 )}
               </div>
+
+              {selectedOrder.notes && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Примечания</p>
+                  <p className="p-3 bg-secondary rounded-lg">{selectedOrder.notes}</p>
+                </div>
+              )}
 
               {selectedOrder.services.length > 0 && (
                 <div>
