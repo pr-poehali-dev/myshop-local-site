@@ -61,6 +61,8 @@ const Index = () => {
   const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false);
   const [receiptText, setReceiptText] = useState('');
   const [isCompletedDialogOpen, setIsCompletedDialogOpen] = useState(false);
+  const [isCustomServiceDialogOpen, setIsCustomServiceDialogOpen] = useState(false);
+  const [customService, setCustomService] = useState({ name: '', price: '', note: '' });
 
   const [newOrder, setNewOrder] = useState({
     dateFrom: '',
@@ -113,7 +115,9 @@ const Index = () => {
   const generateReceipt = (order: Order) => {
     const total = order.services.reduce((sum, name) => {
       const service = services.find(s => s.name === name);
-      return sum + (service?.price || 0);
+      if (service) return sum + service.price;
+      const match = name.match(/\((\d+)\s*₽\)/);
+      return sum + (match ? parseInt(match[1]) : 0);
     }, 0);
 
     const currentDate = new Date().toLocaleDateString('ru-RU');
@@ -144,7 +148,12 @@ Telegram: ${order.telegram}
 ────────────────────────────────────────
 ${order.services.map((name, idx) => {
   const service = services.find(s => s.name === name);
-  return `${idx + 1}. ${name.padEnd(30)} ${(service?.price || 0).toLocaleString('ru-RU')} ₽`;
+  let price = service?.price || 0;
+  if (!service) {
+    const match = name.match(/\((\d+)\s*₽\)/);
+    price = match ? parseInt(match[1]) : 0;
+  }
+  return `${idx + 1}. ${name.padEnd(30)} ${price.toLocaleString('ru-RU')} ₽`;
 }).join('\n')}
 
 ────────────────────────────────────────
@@ -157,7 +166,7 @@ ${order.notes}
 ────────────────────────────────────────
 ` : ''}
 Спасибо за обращение!
-MyShop © ${new Date().getFullYear()}
+EasyAdventure.Shop © ${new Date().getFullYear()}
 `;
     
     return receipt;
@@ -383,7 +392,7 @@ MyShop © ${new Date().getFullYear()}
               <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
                 <Icon name="ShoppingBag" size={20} className="text-white" />
               </div>
-              <h1 className="text-2xl font-bold">MyShop</h1>
+              <h1 className="text-2xl font-bold">EasyAdventure.Shop</h1>
             </div>
             <div className="flex gap-2">
               <Button
@@ -769,6 +778,13 @@ MyShop © ${new Date().getFullYear()}
                     {service.name} ({service.price} ₽)
                   </Badge>
                 ))}
+                <Badge
+                  variant="outline"
+                  className="cursor-pointer hover:bg-primary hover:text-white transition-colors"
+                  onClick={() => setIsCustomServiceDialogOpen(true)}
+                >
+                  Прочее
+                </Badge>
               </div>
               {newOrder.services.length > 0 && (
                 <div className="mt-3 space-y-2">
@@ -917,6 +933,13 @@ MyShop © ${new Date().getFullYear()}
                     {service.name} ({service.price} ₽)
                   </Badge>
                 ))}
+                <Badge
+                  variant="outline"
+                  className="cursor-pointer hover:bg-primary hover:text-white transition-colors"
+                  onClick={() => setIsCustomServiceDialogOpen(true)}
+                >
+                  Прочее
+                </Badge>
               </div>
               {newOrder.services.length > 0 && (
                 <div className="mt-3 space-y-2">
@@ -1027,10 +1050,15 @@ MyShop © ${new Date().getFullYear()}
                   <div className="space-y-2">
                     {selectedOrder.services.map((serviceName, idx) => {
                       const service = services.find(s => s.name === serviceName);
+                      let price = service?.price || 0;
+                      if (!service) {
+                        const match = serviceName.match(/\((\d+)\s*₽\)/);
+                        price = match ? parseInt(match[1]) : 0;
+                      }
                       return (
                         <div key={idx} className="flex items-center justify-between p-3 bg-secondary rounded-lg">
                           <span>{serviceName}</span>
-                          {service && <span className="font-medium">{service.price} ₽</span>}
+                          <span className="font-medium">{price} ₽</span>
                         </div>
                       );
                     })}
@@ -1040,7 +1068,9 @@ MyShop © ${new Date().getFullYear()}
                       <span>Итого:</span>
                       <span>{selectedOrder.services.reduce((sum, name) => {
                         const service = services.find(s => s.name === name);
-                        return sum + (service?.price || 0);
+                        if (service) return sum + service.price;
+                        const match = name.match(/\((\d+)\s*₽\)/);
+                        return sum + (match ? parseInt(match[1]) : 0);
                       }, 0)} ₽</span>
                     </div>
                   </div>
@@ -1197,6 +1227,61 @@ MyShop © ${new Date().getFullYear()}
                 <p className="text-lg font-medium">Заявка создана!</p>
               </div>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isCustomServiceDialogOpen} onOpenChange={setIsCustomServiceDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Кастомная услуга</DialogTitle>
+            <DialogDescription>Добавьте детали услуги</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="customServiceName">Название</Label>
+              <Input
+                id="customServiceName"
+                placeholder="Введите название услуги"
+                value={customService.name}
+                onChange={(e) => setCustomService({ ...customService, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customServicePrice">Цена</Label>
+              <Input
+                id="customServicePrice"
+                type="number"
+                placeholder="Введите цену"
+                value={customService.price}
+                onChange={(e) => setCustomService({ ...customService, price: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customServiceNote">Примечание</Label>
+              <Input
+                id="customServiceNote"
+                placeholder="Дополнительная информация"
+                value={customService.note}
+                onChange={(e) => setCustomService({ ...customService, note: e.target.value })}
+              />
+            </div>
+            <Button onClick={() => {
+              if (customService.name && customService.price) {
+                const serviceName = `${customService.name} (${customService.price} ₽)${customService.note ? ` - ${customService.note}` : ''}`;
+                setNewOrder({
+                  ...newOrder,
+                  services: [...newOrder.services, serviceName]
+                });
+                setCustomService({ name: '', price: '', note: '' });
+                setIsCustomServiceDialogOpen(false);
+                toast.success('Услуга добавлена');
+              } else {
+                toast.error('Заполните название и цену');
+              }
+            }} className="w-full h-12">
+              Добавить
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
