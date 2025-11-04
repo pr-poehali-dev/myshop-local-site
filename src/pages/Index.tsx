@@ -123,29 +123,18 @@ const Index = () => {
     const currentDate = new Date().toLocaleDateString('ru-RU');
     
     const receipt = `
-╔═══════════════════════════════════════╗
-          СЧЁТ НА ОПЛАТУ УСЛУГ
-╚═══════════════════════════════════════╝
+═══════════════════════════════════
+СЧЁТ №${order.orderNumber} от ${currentDate}
+═══════════════════════════════════
 
-Номер заказа: ${order.orderNumber}
-Дата выставления: ${currentDate}
-
-────────────────────────────────────────
-ИНФОРМАЦИЯ О ЗАКАЗЧИКЕ
-────────────────────────────────────────
 Клиент: ${order.customerName}
 Телефон: ${order.customerPhone}
-Telegram: ${order.telegram}
+TG: ${order.telegram}
 
-────────────────────────────────────────
-ИНФОРМАЦИЯ ОБ УСЛУГАХ
-────────────────────────────────────────
-Период выполнения: ${order.dateFrom} — ${order.dateTo}
-Ответственный исполнитель: ${order.executor}
+Период: ${order.dateFrom} — ${order.dateTo}
+Исполнитель: ${order.executor}
 
-────────────────────────────────────────
-ПЕРЕЧЕНЬ УСЛУГ
-────────────────────────────────────────
+Услуги:
 ${order.services.map((name, idx) => {
   const service = services.find(s => s.name === name);
   let price = service?.price || 0;
@@ -153,19 +142,14 @@ ${order.services.map((name, idx) => {
     const match = name.match(/\((\d+)\s*₽\)/);
     price = match ? parseInt(match[1]) : 0;
   }
-  return `${idx + 1}. ${name.padEnd(30)} ${price.toLocaleString('ru-RU')} ₽`;
+  return `${idx + 1}. ${name} — ${price.toLocaleString('ru-RU')} ₽`;
 }).join('\n')}
+${order.notes ? `\nПримечание: ${order.notes}` : ''}
 
-────────────────────────────────────────
-ИТОГО К ОПЛАТЕ: ${total.toLocaleString('ru-RU')} ₽
-────────────────────────────────────────
-${order.notes ? `
-ПРИМЕЧАНИЯ
-────────────────────────────────────────
-${order.notes}
-────────────────────────────────────────
-` : ''}
-Спасибо за обращение!
+───────────────────────────────────
+ИТОГО: ${total.toLocaleString('ru-RU')} ₽
+───────────────────────────────────
+
 EasyAdventure.Shop © ${new Date().getFullYear()}
 `;
     
