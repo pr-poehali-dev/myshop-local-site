@@ -358,7 +358,7 @@ EasyAdventure.Shop © ${new Date().getFullYear()}
             <div className="mx-auto w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mb-2">
               <Icon name="ShoppingBag" size={32} className="text-white" />
             </div>
-            <CardTitle className="text-3xl font-semibold">MyShop</CardTitle>
+            <CardTitle className="text-3xl font-semibold">EasyAdventure.Shop</CardTitle>
             <CardDescription>Введите пароль для входа</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
